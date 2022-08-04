@@ -1,6 +1,130 @@
 # clojure-ga
 
-FIXME: description
+An implementation of a simple genetic algorithm (GA) in Clojure,
+mostly done so I can run some timing comparisons between Clojure
+and Rust.
+
+## Timing for constructing a population
+
+All timings are computing using
+[the Criterium library](https://github.com/hugoduncan/criterium).
+I used calls like:
+
+```clojure
+(with-progress-reporting (bench (doall (make-population 1000 128)) :verbose))
+```
+
+i.e., making a population of a thousand individuals each with
+length 128.
+
+:warning: The `doall` is critical; without it nothing actually
+gets constructed thanks to lazy evaluation. The serial timing
+without `doall` was about 20ns, where it's over 40ms with the
+`doall` inserted.
+
+### Serial (no parallelism)
+
+With `make-population` implemented with no parallelism, i.e.,
+
+```clojure
+(defn make-population
+  [pop-size num-bits]
+  (repeatedly
+   pop-size
+   #(make-individual num-bits)))
+```
+
+we get an evaluation time of just over 43ms:
+
+```text
+(with-progress-reporting (bench (doall (make-population 1000 128)) :verbose))
+Warming up for JIT optimisations 10000000000 ...
+Estimating execution count ...
+Sampling ...
+Final GC...
+Checking GC...
+Finding outliers ...
+Bootstrapping ...
+Checking outlier significance
+aarch64 Mac OS X 12.5 8 cpu(s)
+OpenJDK 64-Bit Server VM 18.0.2+0
+Runtime arguments: -Dfile.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Dclojure.compile.path=/Users/mcphee/Documents/Year_of_Programming/clojure-ga/target/default/classes -Dclojure-ga.version=0.1.0-SNAPSHOT -Dclojure.debug=false
+Evaluation count : 1440 in 60 samples of 24 calls.
+      Execution time sample mean : 43.466522 ms
+             Execution time mean : 43.502910 ms
+Execution time sample std-deviation : 1.453606 ms
+    Execution time std-deviation : 1.516402 ms
+   Execution time lower quantile : 42.605081 ms ( 2.5%)
+   Execution time upper quantile : 46.805365 ms (97.5%)
+                   Overhead used : 9.735649 ns
+
+Found 7 outliers in 60 samples (11.6667 %)
+ low-severe  4 (6.6667 %)
+ low-mild  3 (5.0000 %)
+ Variance from outliers : 22.1664 % Variance is moderately inflated by outliers
+```
+
+### Parallel using `pmap`
+
+Using `pmap` to parallelise the population creation as follows:
+
+```clojure
+(defn pmap-make-population
+  [pop-size num-bits]
+  (pmap (fn [_] (make-individual num-bits))
+        (range pop-size)))
+```
+
+We got almost exactly the same timing, i.e., just under 45ms. This
+is super weird, and I'm confused. The Activity Monitor made it clear
+that we were using all the cores (where the serial was just using
+one), but the timing didn't improve at all.
+
+Maybe the cost of parallelizing the construction of 1K individuals
+is just too high relative to the cost of constructing them, and we
+don't win here. That's interesting, though, given that the Rust
+code saw a substantial speedup when we added the parallelism.
+
+```text
+(with-progress-reporting (bench (doall (pmap-make-population 1000 128)) :verbose))
+Warming up for JIT optimisations 10000000000 ...
+  compilation occurred before 53 iterations
+  compilation occurred before 105 iterations
+  compilation occurred before 261 iterations
+Estimating execution count ...
+Sampling ...
+Final GC...
+Checking GC...
+Finding outliers ...
+Bootstrapping ...
+Checking outlier significance
+aarch64 Mac OS X 12.5 8 cpu(s)
+OpenJDK 64-Bit Server VM 18.0.2+0
+Runtime arguments: -Dfile.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Dclojure.compile.path=/Users/mcphee/Documents/Year_of_Programming/clojure-ga/target/default/classes -Dclojure-ga.version=0.1.0-SNAPSHOT -Dclojure.debug=false
+Evaluation count : 1560 in 60 samples of 26 calls.
+      Execution time sample mean : 44.894916 ms
+             Execution time mean : 44.879725 ms
+Execution time sample std-deviation : 2.368709 ms
+    Execution time std-deviation : 2.400475 ms
+   Execution time lower quantile : 39.249901 ms ( 2.5%)
+   Execution time upper quantile : 48.462834 ms (97.5%)
+                   Overhead used : 9.735649 ns
+```
+
+### Comparison with Rust
+
+Rust is (for this part) substantially faster. The serial version
+of Rust took 2.4ms, which is nearly 20x faster than either the
+serial or parallel version of Clojure. The parallel Rust version
+was only 638 µs, which is nearly 70x faster than either of the
+Clojure versions.
+
+It's entirely possible, however, that we're not yet doing "enough"
+for the parallelism to really pay off in Clojure. Certainly the
+"fitness calculation" (counting the number of ones) is super cheap
+here, and in a fairly unrealistic way. I should probably add a more
+complex fitness calculation like HIFF to see how that affects the
+timing results (if at all).
 
 ## Installation
 
