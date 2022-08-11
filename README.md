@@ -126,6 +126,29 @@ here, and in a fairly unrealistic way. I should probably add a more
 complex fitness calculation like HIFF to see how that affects the
 timing results (if at all).
 
+## Constructing a population with HIFF fitness function
+
+When I changed things to use the HIFF fitness function (or some
+approximation of that taken from memory) instead of
+just `count_ones`, things slow down quite a bit.
+
+The serial time is nearly 300 ms, so over six times slower than
+when just using `count_ones`.
+
+The parallel time is about 90 ms, or roughly twice what it was
+with `count_ones`, and about 1/3 the time of the serial version
+using HIFF.
+
+Rust performance with parallel evaluation and HIFF is about 900 µs,
+which is about _one hundred times faster_. Yowza! 
+
+I'm was a _little_
+concerned that maybe there's some kind of lazy evaluation thing
+happening on the Rust side that I'm not taking into account? I went
+bad and made some changes to ensure that everything was actually being
+evaluated, and that had no effect on the Rust timings. So it's clear
+that Rust is just a heck of a lot faster on this.
+
 ## Installation
 
 Download from http://example.com/FIXME.
