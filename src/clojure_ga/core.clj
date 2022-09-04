@@ -10,7 +10,7 @@
   (let [len (count bits)
         half-len (quot len 2)]
     (if (< len 2)
-      0
+      len
       (+ (hiff (take half-len bits))
          (hiff (drop half-len bits))
          (if (every? #(= % (first bits)) bits)
