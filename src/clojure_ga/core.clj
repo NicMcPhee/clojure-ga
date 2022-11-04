@@ -20,30 +20,24 @@
 ;;            len
 ;;            0)))))
 
+;; Returns a vector [all-same scores], where `all-same`
+;; is true if all the values in `bits` are the same, and
+;; `scores` is the score list for this collection of `bits`.
 (defn do-hiff
   [bits scores]
   (let [len (count bits)]
     (if (< len 2)
-      (do
-        (.add scores len)
-        true)
+      [true (conj scores len)]
       (let [half-len (/ len 2)
-            left-all-same (do-hiff (take half-len bits) scores)
-            right-all-same (do-hiff (drop half-len bits) scores)]
+            [left-all-same left-scores] (do-hiff (take half-len bits) scores)
+            [right-all-same all-scores] (do-hiff (drop half-len bits) left-scores)]
         (if (and left-all-same right-all-same (= (first bits) (nth bits half-len)))
-          (do
-            (.add scores len)
-            true)
-          (do
-            (.add scores 0)
-            false))))))
+          [true (conj all-scores len)]
+          [false (conj all-scores 0)])))))
 
 (defn hiff
   [bits]
-  (let [num_scores (- (* 2 (count bits)) 1)
-        scores (java.util.ArrayList. num_scores)]
-    (do-hiff bits scores)
-    scores))
+  (vec (second (do-hiff bits (list)))))
 
 (defn make-random-individual
   [num-bits scorer]
@@ -187,12 +181,22 @@
     ;; (doseq [[gen-num pop] (map #(vector %1 %2) (range) gens)]
     ;;   (println (str "Generation: " gen-num))
     ;;   (println (str "\tBest individual: " (best-individual pop))))
-    (best-individual (last gens))
+    ;; (println 
+     (best-individual (last gens))
+    ;;  )
     ))
 
 (defn -main
   [& _args]
   (bench/with-progress-reporting
     (bench/bench
-     (run-ga 1000 512 hiff 50)))
+      (run-ga 1000 512 hiff 50)
+    ))
   (shutdown-agents))
+
+;; (defn -main
+;;   [& _args]
+;;   (let [bits (concat (repeat 64 0) (repeat 64 1))]
+;;     (bench/with-progress-reporting
+;;     (bench/bench
+;;       (hiff bits)))))
